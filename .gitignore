@@ -1,0 +1,24 @@
+# User content and machine state
+/data/
+/local/
+/migration/
+/review/
+/proposal/
+/verification/
+/release/
+/artifacts/
+/build/
+/.idea/
+/.vs/
+**/bin/
+**/obj/
+*.user
+*.lnk
+.env
+.env.*
+*.pfx
+*.p12
+*.pem
+*.key
+# Optional external test media; downloaded locally only
+/test-assets/flower.mp4
