@@ -9,7 +9,7 @@
     <AssemblyName>DailyDiaryCard</AssemblyName>
     <RootNamespace>DailyDiaryCard</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>2.0.1</Version>
+    <Version>2.0.2</Version>
     <DebugType>embedded</DebugType>
     <StartupObject>DailyDiaryCard.Program</StartupObject>
     <NoWarn>$(NoWarn);WFO0003</NoWarn>

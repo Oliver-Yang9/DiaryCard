@@ -1,4 +1,4 @@
-param([string]$DotnetPath='', [string]$OutputDirectory=(Join-Path $PSScriptRoot 'release\V2.01'))
+param([string]$DotnetPath='', [string]$OutputDirectory=(Join-Path $PSScriptRoot 'release\V2.02'))
 $ErrorActionPreference='Stop'
 if(-not $DotnetPath){
     $taskBundled=Join-Path (Split-Path $PSScriptRoot -Parent) 'local\build\dotnet\dotnet.exe'
@@ -17,4 +17,13 @@ if($LASTEXITCODE -ne 0){throw '构建失败'}
 Copy-Item -LiteralPath (Join-Path $OutputDirectory 'DailyDiaryCard.exe') -Destination (Join-Path $OutputDirectory '日记卡片.exe') -Force
 Remove-Item -LiteralPath (Join-Path $OutputDirectory 'DailyDiaryCard.exe')
 if(Test-Path -LiteralPath (Join-Path $PSScriptRoot 'README.md')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'README.md') -Destination (Join-Path $OutputDirectory '使用说明.md') -Force}
+foreach($name in @('LICENSE','CHANGELOG.md','diary-card.example.json')){
+    $file=Join-Path $PSScriptRoot $name
+    if(Test-Path -LiteralPath $file){Copy-Item -LiteralPath $file -Destination $OutputDirectory -Force}
+}
+$weeklyGuide=Join-Path $PSScriptRoot 'docs\weekly-report.md'
+if(Test-Path -LiteralPath $weeklyGuide){
+    New-Item -ItemType Directory -Path (Join-Path $OutputDirectory 'docs') -Force|Out-Null
+    Copy-Item -LiteralPath $weeklyGuide -Destination (Join-Path $OutputDirectory 'docs\weekly-report.md') -Force
+}
 Write-Output ('正式版程序：'+(Join-Path $OutputDirectory '日记卡片.exe'))

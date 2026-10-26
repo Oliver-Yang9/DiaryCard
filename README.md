@@ -1,10 +1,10 @@
-# DiaryCard · 日记卡片 V2.01
+# DiaryCard · 日记卡片 V2.02
 
-面向 Obsidian 用户的 Windows 本地桌面日记卡片。公开版本名 **V2.01**，程序产品版本 **2.0.1**。C# / WPF / .NET 10；Windows 10/11 x64 自包含发行包，无需另装 .NET。日记仅保存在本地，不需要 Obsidian 保持打开，不注册开机启动。
+面向 Obsidian 用户的 Windows 本地桌面日记卡片。公开版本名 **V2.02**，程序产品版本 **2.0.2**。C# / WPF / .NET 10；Windows 10/11 x64 自包含发行包，无需另装 .NET。日记仅保存在本地，不需要 Obsidian 保持打开，不注册开机启动。
 
 ## 下载与首次使用
 
-从 [V2.01 Release](https://github.com/Oliver-Yang9/DiaryCard/releases/tag/V2.01) 下载 Windows-x64.zip，完整解压到有写入权限的目录，双击“日记卡片.exe”。首次向导提供：
+从 [V2.02 Release](https://github.com/Oliver-Yang9/DiaryCard/releases/tag/V2.02) 下载 Windows-x64.zip，完整解压到有写入权限的目录，双击“日记卡片.exe”。首次向导提供：
 
 - **已有 Obsidian 日记库**：选择仓库根目录，点击“读取仓库设置”。优先读取 `.obsidian/daily-notes.json`，其次读取 Periodic Notes 的 daily 配置；可以调整模板、记录目录与命名。
 - **没有日记库**：在程序目录下新建 `DailyNote`，附带 Obsidian 配置和默认复盘模板，日记写入 `DailyNote/日记/YYYY/MM/YYYY-MM-DD.md`。已有内容时拒绝覆盖。
@@ -19,6 +19,17 @@
 - 主题库提供清透、暖纸、深色和磨砂主题，支持本地图片、GIF、静音循环 MP4，调整栏目透明度和背景显现度。
 - 四边贴边自动收起，带收起／展开动画，鼠标移到边缘细条恢复。
 
+## 日报聚合为周报
+
+入口：“••• → 周报汇总…”。先选周期、预览，再生成或更新；支持打开已保存周报及另存预览草稿。
+
+- 每期固定汇总 **周六至下周五** 的 7 天日记，按截止周五的 ISO 周归档。
+- 自动生成可选择 **周一至周日、00:00—24:00**，精确到分钟；24:00 表示次日 00:00。
+- 时间使用北京时间（UTC+8），设置按日记库单独保存。自动生成默认关闭；开启后卡片运行期间检查，退出期间错过的在下次打开补跑最近一期。
+- 原文分类、去重并附来源，区分完成、待办和规划；仅更新 AUTO 自动区，保留手工补充。标记异常另存待合并，预览后的外部修改会阻止覆盖。
+- 周报仅处理所选日记目录内具有 type: diary 且可确认归属日期的 Markdown 文件，不调用 AI、不上传。
+
+完整规则、生成周期和升级说明见 [周报使用说明](docs/weekly-report.md)。
 ## 模板和保存
 
 按 Markdown 二级标题生成栏目，保持标题及顺序；三级标题归属上级栏目。支持中文、多行、列表、任务复选框及栏目 Markdown 编辑，保留 YAML 和任务区域标记。`{{date:YYYY-MM-DD}}` 创建笔记时替换为本地日期，原模板不改。
@@ -42,11 +53,12 @@
 .\prepare-test-media.ps1 # 可选：下载 MP4 开发测试素材
 .\verify.ps1
 .\setup-process-test.ps1
+.\weekly-process-test.ps1
 # ConfigPath 使用 verify 输出的隔离测试目录
 .\process-test.ps1 -ConfigPath .\local\tests\verify-日期时间\ui\ui-config.json
 ```
 
-build.ps1 输出 `release/V2.01/日记卡片.exe`，可用 `-DotnetPath`、`-OutputDirectory` 指定路径。首次还原需联网访问 NuGet，日常使用不需联网。`--setup-tests --test-root ...` 和 `--setup-ui-smoke --test-root ...` 验证首次使用功能。全部测试在隔离目录运行，不修改系统日期和真实日记。
+build.ps1 输出 `release/V2.02/日记卡片.exe`，可用 `-DotnetPath`、`-OutputDirectory` 指定路径。首次还原需联网访问 NuGet，日常使用不需联网。`--setup-tests --test-root ...` 和 `--setup-ui-smoke --test-root ...` 验证首次使用功能。全部测试在隔离目录运行，不修改系统日期和真实日记。
 
 ## 版本与边界
 
@@ -55,8 +67,10 @@ build.ps1 输出 `release/V2.01/日记卡片.exe`，可用 `-DotnetPath`、`-Out
 源码采用 MIT 许可；随附 .NET 运行组件许可见发行包 licenses。默认背景可通过主题库更换。个人笔记、配置、草稿及本机测试库不属于公开发行内容。
 ## 实际运行预览
 
-![首次使用](docs/screenshots/first-use.png)
+![周报汇总预览](docs/screenshots/weekly-preview.png)
 
-![默认卡片](docs/screenshots/default-card.png)
+![默认日记卡片](docs/screenshots/default-card.png)
 
-截图来自隔离测试库，无个人日记。
+![首次使用向导](docs/screenshots/first-use.png)
+
+截图来自隔离测试库，不包含个人日记。深色主题及其他主题可在主题库切换。

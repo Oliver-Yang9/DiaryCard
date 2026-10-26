@@ -1,4 +1,4 @@
-param([string]$ExePath=(Join-Path $PSScriptRoot 'release\V2.01\日记卡片.exe'))
+param([string]$ExePath=(Join-Path $PSScriptRoot 'release\V2.02\日记卡片.exe'))
 $ErrorActionPreference='Stop'
 $taskRoot=Join-Path $PSScriptRoot ('local\tests\switch-'+(Get-Date -Format 'yyyyMMdd-HHmmss'))
 New-Item -ItemType Directory -Path $taskRoot -Force|Out-Null

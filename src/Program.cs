@@ -32,6 +32,8 @@ public static class Program
         }
         if(args.Contains("--setup-tests"))return SetupTests.Run(testRoot);
         if(args.Contains("--setup-ui-smoke"))return SetupUiTests.Run(testRoot);
+        if(args.Contains("--weekly-tests"))return WeeklyTests.Run(testRoot,Value("--weekly-source-vault"));
+        if(args.Contains("--weekly-ui-smoke"))return WeeklyUiTests.Run(testRoot);
         CardConfig? config=null;bool restart=false;int result=0;
         var file=Path.GetFullPath(Value("--config")??Path.Combine(AppContext.BaseDirectory,"diary-card.json"));
         try

@@ -18,7 +18,7 @@ using Forms = System.Windows.Forms;
 
 namespace DailyDiaryCard;
 
-public sealed class MainWindow : Window
+public sealed partial class MainWindow : Window
 {
     private readonly CardConfig config;
     public bool RestartRequested { get; private set; }
@@ -120,7 +120,7 @@ public sealed class MainWindow : Window
             if(Keyboard.Modifiers==ModifierKeys.Control&&(e.Key==Key.Subtract||e.Key==Key.OemMinus)){SetFont(prefs.FontSize-1);e.Handled=true;}
         };
         Deactivated+=(_,_)=>{composing=false;TrySave();};
-        Closing+=(_,e)=>{if(!exiting){if(!TrySave()){e.Cancel=true;return;}SavePreferences();exiting=true;}};
+        Closing+=(_,e)=>{if(weeklyBusy){e.Cancel=true;SetWeeklyMessage("正在处理周报，请稍候再退出。");return;}if(!exiting){if(!TrySave()){e.Cancel=true;return;}SavePreferences();exiting=true;}};
         Closed+=(_,_)=>{backgroundRevision++;wallpaper.Dispose();docking.Dispose();timer?.Stop();nativeSource?.RemoveHook(OnNativeMessage);tray.Visible=false;tray.Icon?.Dispose();tray.Dispose();};
         timer=new DispatcherTimer {Interval=TimeSpan.FromMilliseconds(250)};timer.Tick+=(_,_)=>Tick();timer.Start();
         if(session.Restored)ShowBanner("已恢复上次未保存的输入；保存前仍会检查外部修改。",false);
@@ -186,7 +186,7 @@ public sealed class MainWindow : Window
     {
         var m=new ContextMenu();
         void Item(string label,Action a){var i=new MenuItem{Header=label};i.Click+=(_,_)=>a();m.Items.Add(i);}
-        Item("主题库",ShowThemes);Item("日记库设置…",()=>CreateVaultSettingsDialog().ShowDialog());Item("展开全部栏目",()=>{foreach(var e in expanders.Values)e.IsExpanded=true;});Item("收起全部栏目",()=>{foreach(var e in expanders.Values)e.IsExpanded=false;});
+        Item("主题库",ShowThemes);Item("周报汇总…",ShowWeekly);Item("日记库设置…",()=>CreateVaultSettingsDialog().ShowDialog());Item("展开全部栏目",()=>{foreach(var e in expanders.Values)e.IsExpanded=true;});Item("收起全部栏目",()=>{foreach(var e in expanders.Values)e.IsExpanded=false;});
         pinMenu=new MenuItem {Header="始终置顶",IsCheckable=true,IsChecked=Topmost};pinMenu.Click+=(_,_)=>ToggleTopmost();m.Items.Add(pinMenu);
         edgeMenu=new MenuItem {Header="贴边自动收起",IsCheckable=true,IsChecked=prefs.EdgeAutoHide};edgeMenu.Click+=(_,_)=>SetEdgeAutoHide(edgeMenu.IsChecked);m.Items.Add(edgeMenu);
         Item("展开并取消本次贴边",()=>docking.Detach());
@@ -245,6 +245,7 @@ public sealed class MainWindow : Window
     }
     private void Tick()
     {
+        TickWeekly();
         if(composing)return;
         if(today()!=session.Date){if(DateTime.UtcNow>=nextDayAttempt){nextDayAttempt=DateTime.UtcNow.AddSeconds(5);CheckDay();}return;}
         if(draftNeeded&&(DateTime.UtcNow-lastEdit).TotalMilliseconds>220&&(DateTime.UtcNow-lastDraft).TotalMilliseconds>450)
@@ -351,6 +352,7 @@ public sealed class MainWindow : Window
     }
     public bool ExitCard()
     {
+        if(weeklyBusy){SetWeeklyMessage("正在处理周报，请稍候再退出。");return false;}
         if(!TrySave()){ShowCard(false);return false;}SavePreferences();exiting=true;Close();return true;
     }
     private void SavePreferences()
@@ -530,6 +532,7 @@ public sealed class MainWindow : Window
     }
     public bool ApplyVaultPlan(VaultPlan plan)
     {
+        if(weeklyBusy)throw new IOException("正在处理周报，请稍候再切换日记库。");
         if(composing){ShowBanner("请先完成当前中文输入，再切换日记库。",true);return false;}
         if(!TrySave())return false;
         if(VaultUse.Key(plan.Config)!=VaultUse.Key(config)&&VaultUse.InUse(plan.Config))throw new IOException("目标日记库正在另一张卡片中打开，请先正常退出它。");
