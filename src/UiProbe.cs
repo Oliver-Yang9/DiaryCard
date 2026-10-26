@@ -11,6 +11,7 @@ public static class UiProbe
     {
         var timer=new DispatcherTimer {Interval=TimeSpan.FromMilliseconds(250)};
         timer.Tick+=(_,_)=>DiarySession.AtomicText(Path.Combine(config.UserDataPath,"probe.json"),JsonSerializer.Serialize(new{
+            vault=config.VaultPath,target=window.Session.Target,template=config.TemplatePath,setupVersion=config.SetupVersion,
             visible=window.IsVisible,window.ShowRequests,theme=window.CurrentTheme,date=window.Session.Date.ToString("yyyy-MM-dd"),dirty=window.Session.Dirty,
             documentHash=DiarySession.Hash(window.Session.LocalDocument()),sections=window.Editors.Count,pid=Environment.ProcessId,
             topmost=window.Topmost,width=window.ActualWidth,height=window.ActualHeight,left=window.Left,top=window.Top,effects=window.Effects,

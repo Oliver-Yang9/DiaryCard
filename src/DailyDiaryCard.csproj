@@ -9,10 +9,14 @@
     <AssemblyName>DailyDiaryCard</AssemblyName>
     <RootNamespace>DailyDiaryCard</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>1.2.0</Version>
+    <Version>2.0.1</Version>
     <DebugType>embedded</DebugType>
     <StartupObject>DailyDiaryCard.Program</StartupObject>
     <NoWarn>$(NoWarn);WFO0003</NoWarn>
     <ApplicationIcon Condition="Exists('Assets\diary.ico')">Assets\diary.ico</ApplicationIcon>
   </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Defaults\template.md" LogicalName="DailyDiaryCard.Defaults.template.md" />
+    <EmbeddedResource Include="Defaults\background.jpg" LogicalName="DailyDiaryCard.Defaults.background.jpg" />
+  </ItemGroup>
 </Project>

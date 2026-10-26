@@ -1,6 +1,5 @@
-﻿param([string]$ExePath = (Join-Path $PSScriptRoot 'release\日记卡片.exe'), [string]$TemplatePath = (Join-Path $PSScriptRoot 'review-assets\复盘模板.md'), [string]$TaskFixturePath = '')
+param([string]$ExePath = (Join-Path $PSScriptRoot 'release\V2.01\日记卡片.exe'), [string]$TemplatePath = (Join-Path $PSScriptRoot 'src\Defaults\template.md'), [string]$TaskFixturePath = '')
 $ErrorActionPreference='Stop'
-if(-not(Test-Path -LiteralPath (Join-Path $PSScriptRoot 'test-assets\flower.mp4'))){throw 'MP4 验收素材未准备，请先运行 .\prepare-test-media.ps1，或按 test-assets/README.md 手动准备。'}
 $taskRoot=Join-Path $PSScriptRoot ('local\tests\verify-'+(Get-Date -Format 'yyyyMMdd-HHmmss'))
 New-Item -ItemType Directory -Path $taskRoot -Force | Out-Null
 $taskCore=Join-Path $taskRoot 'core'

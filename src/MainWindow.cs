@@ -21,6 +21,7 @@ namespace DailyDiaryCard;
 public sealed class MainWindow : Window
 {
     private readonly CardConfig config;
+    public bool RestartRequested { get; private set; }
     private readonly Preferences prefs;
     private readonly Func<DateOnly> today;
     private readonly Forms.NotifyIcon tray;
@@ -185,7 +186,7 @@ public sealed class MainWindow : Window
     {
         var m=new ContextMenu();
         void Item(string label,Action a){var i=new MenuItem{Header=label};i.Click+=(_,_)=>a();m.Items.Add(i);}
-        Item("主题库",ShowThemes);Item("展开全部栏目",()=>{foreach(var e in expanders.Values)e.IsExpanded=true;});Item("收起全部栏目",()=>{foreach(var e in expanders.Values)e.IsExpanded=false;});
+        Item("主题库",ShowThemes);Item("日记库设置…",()=>CreateVaultSettingsDialog().ShowDialog());Item("展开全部栏目",()=>{foreach(var e in expanders.Values)e.IsExpanded=true;});Item("收起全部栏目",()=>{foreach(var e in expanders.Values)e.IsExpanded=false;});
         pinMenu=new MenuItem {Header="始终置顶",IsCheckable=true,IsChecked=Topmost};pinMenu.Click+=(_,_)=>ToggleTopmost();m.Items.Add(pinMenu);
         edgeMenu=new MenuItem {Header="贴边自动收起",IsCheckable=true,IsChecked=prefs.EdgeAutoHide};edgeMenu.Click+=(_,_)=>SetEdgeAutoHide(edgeMenu.IsChecked);m.Items.Add(edgeMenu);
         Item("展开并取消本次贴边",()=>docking.Detach());
@@ -521,13 +522,31 @@ public sealed class MainWindow : Window
         settingsDialogs[dialog]=WindowEffects.ApplyDialog(dialog,prefs.Theme=="night");
     }
     internal DialogEffectState DialogAppearanceFor(Window dialog)=>settingsDialogs[dialog];
+    public VaultSetupWindow CreateVaultSettingsDialog()
+    {
+        var dialog=new VaultSetupWindow(config.ConfigPath,ApplyVaultPlan,config,prefs.Theme){Owner=this,WindowStartupLocation=WindowStartupLocation.CenterOwner};
+        settingsDialogs[dialog]=new(false,-1,-1,-1,-1);ApplyDialogAppearance(dialog);
+        dialog.SourceInitialized+=(_,_)=>ApplyDialogAppearance(dialog);dialog.Closed+=(_,_)=>settingsDialogs.Remove(dialog);return dialog;
+    }
+    public bool ApplyVaultPlan(VaultPlan plan)
+    {
+        if(composing){ShowBanner("请先完成当前中文输入，再切换日记库。",true);return false;}
+        if(!TrySave())return false;
+        if(VaultUse.Key(plan.Config)!=VaultUse.Key(config)&&VaultUse.InUse(plan.Config))throw new IOException("目标日记库正在另一张卡片中打开，请先正常退出它。");
+        plan.Config.PathMappings=config.PathMappings;SavePreferences();
+        using(var transaction=SetupService.Prepare(plan)){transaction.Commit();}
+        RestartRequested=true;IsEnabled=false;
+        Dispatcher.BeginInvoke(new Action(()=>{exiting=true;Close();}),DispatcherPriority.Background);
+        return true;
+    }
     private void ShowConfig()
         =>CreateConfigDialog().ShowDialog();
     public Window CreateConfigDialog()
     {
-        var message="仓库："+config.VaultPath+"\n模板："+config.TemplatePath+"\n日记目录："+config.DiaryFolder+"\n命名规则："+config.DateFormat+"\n本机草稿与偏好："+config.UserDataPath+"\n配置文件："+config.ConfigPath+"\n\n修改配置后重新启动生效。未配置的目录与命名规则沿用 Obsidian。\n程序不联网，不注册开机启动，首版不新增任务继承。";
+        var message="仓库："+config.VaultPath+"\n模板："+config.TemplatePath+"\n日记目录："+config.DiaryFolder+"\n命名规则："+config.DateFormat+"\n本机草稿与偏好："+config.UserDataPath+"\n配置文件："+config.ConfigPath+"\n\n可使用“日记库设置”修改地址、模板和保存规则。切换前先保存，再自动重新打开卡片。\n程序不联网，不注册开机启动，不新增跨天任务继承。";
         var dialog=Dialog("日记卡片配置",650,500);var layout=new DockPanel {Margin=new Thickness(22)};
         var done=Button("关闭",()=>dialog.Close());done.HorizontalAlignment=HorizontalAlignment.Right;DockPanel.SetDock(done,Dock.Bottom);layout.Children.Add(done);
+        var change=Button("日记库设置…",()=>{dialog.Close();CreateVaultSettingsDialog().ShowDialog();});change.HorizontalAlignment=HorizontalAlignment.Left;DockPanel.SetDock(change,Dock.Bottom);layout.Children.Add(change);
         layout.Children.Add(new TextBox {Text=message,IsReadOnly=true,AcceptsReturn=true,TextWrapping=TextWrapping.Wrap,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,FontSize=13});dialog.Content=layout;return dialog;
     }
     private void ShowRecovery()

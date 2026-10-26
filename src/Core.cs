@@ -19,6 +19,8 @@ public sealed class CardConfig
     public string DateFormat { get; set; } = "";
     public string UserDataPath { get; set; } = "";
     public string ConfigPath { get; set; } = "";
+    public int SetupVersion { get; set; }
+    public bool UseBundledTemplate { get; set; }
     public Dictionary<string,string> PathMappings { get; set; } = new();
     public static readonly JsonSerializerOptions Json = new() { WriteIndented = true, PropertyNameCaseInsensitive = true, ReadCommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
     public static CardConfig Load(string? file)
@@ -28,25 +30,22 @@ public sealed class CardConfig
         c.PathMappings ??= new();
         c.ConfigPath = Path.GetFullPath(file);
         var baseDir = Path.GetDirectoryName(c.ConfigPath)!;
-        if (string.IsNullOrWhiteSpace(c.VaultPath))
-        {
-            DirectoryInfo? dir = new(baseDir);
-            while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, ".obsidian"))) dir = dir.Parent;
-            c.VaultPath = dir?.FullName ?? @"E:\DailyNote";
-        }
-        c.VaultPath = c.ResolvePath(c.VaultPath, baseDir);
-        var dailyConfig = Path.Combine(c.VaultPath, ".obsidian", "daily-notes.json");
-        using var doc = File.Exists(dailyConfig) ? JsonDocument.Parse(File.ReadAllText(dailyConfig)) : JsonDocument.Parse("{}");
-        string Get(string key, string fallback) => doc.RootElement.TryGetProperty(key, out var p) ? p.GetString() ?? fallback : fallback;
-        if (string.IsNullOrWhiteSpace(c.TemplatePath)) c.TemplatePath = Get("template", "模板/03-工作学习复盘");
-        if (!c.TemplatePath.EndsWith(".md", StringComparison.OrdinalIgnoreCase)) c.TemplatePath += ".md";
-        c.TemplatePath = c.ResolvePath(c.TemplatePath, c.VaultPath);
-        if (string.IsNullOrWhiteSpace(c.DiaryFolder)) c.DiaryFolder = Get("folder", "日记");
-        c.DiaryFolder = c.ResolvePath(c.DiaryFolder, c.VaultPath);
-        if (string.IsNullOrWhiteSpace(c.DateFormat)) c.DateFormat = Get("format", "YYYY/MM/YYYY-MM-DD");
-        if (string.IsNullOrWhiteSpace(c.UserDataPath)) c.UserDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DailyDiaryCard");
-        c.UserDataPath = c.ResolvePath(c.UserDataPath, baseDir);
+        if(string.IsNullOrWhiteSpace(c.VaultPath))throw new IOException("请先选择或创建日记库。");
+        c.VaultPath=c.ResolvePath(c.VaultPath,baseDir);
+        if(!Directory.Exists(c.VaultPath))throw new IOException("日记库地址不存在，请在日记库设置中重新选择。");
+        if(string.IsNullOrWhiteSpace(c.UserDataPath))c.UserDataPath=Path.Combine(baseDir,"data");
+        c.UserDataPath=c.ResolvePath(c.UserDataPath,baseDir);
+        var settings=string.IsNullOrWhiteSpace(c.DiaryFolder)||string.IsNullOrWhiteSpace(c.DateFormat)||(!c.UseBundledTemplate&&string.IsNullOrWhiteSpace(c.TemplatePath))?SetupService.Inspect(c.VaultPath):new VaultSettings("","日记","YYYY/MM/YYYY-MM-DD","显式配置",false);
+        if(c.UseBundledTemplate)c.TemplatePath=DefaultAssets.TemplatePath(c.UserDataPath);
+        else if(string.IsNullOrWhiteSpace(c.TemplatePath))c.TemplatePath=settings.Template;
+        if(string.IsNullOrWhiteSpace(c.TemplatePath))throw new IOException("未找到日记模板，请选择模板或使用内置模板。");
+        if(!c.TemplatePath.EndsWith(".md",StringComparison.OrdinalIgnoreCase))c.TemplatePath+=".md";
+        c.TemplatePath=c.ResolvePath(c.TemplatePath,c.VaultPath);
+        if(string.IsNullOrWhiteSpace(c.DiaryFolder))c.DiaryFolder=settings.Folder;
+        c.DiaryFolder=c.ResolvePath(c.DiaryFolder,c.VaultPath);
+        if(string.IsNullOrWhiteSpace(c.DateFormat))c.DateFormat=settings.Format;
         if (!File.Exists(c.TemplatePath)) throw new IOException("找不到模板：" + c.TemplatePath);
+        _ = TemplateReconciler.Parse(DiarySession.ReadText(c.TemplatePath));
         _ = c.PathFor(new DateOnly(2026, 10, 24));
         return c;
     }

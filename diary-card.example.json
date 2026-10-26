@@ -1,8 +1,10 @@
 {
-  "VaultPath": "C:\\Notes\\Obsidian",
-  "UserDataPath": "",
+  "SetupVersion": 0,
+  "VaultPath": "",
+  "DiaryFolder": "",
+  "UseBundledTemplate": true,
+  "UserDataPath": "data",
   "PathMappings": {},
   "DateFormat": "",
-  "DiaryFolder": "",
   "TemplatePath": ""
 }
