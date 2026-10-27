@@ -24,6 +24,7 @@ public sealed partial class MainWindow
     internal bool BeginWeekly()
     {
         if(weeklyBusy)throw new IOException("正在处理周报，请稍候。");
+        if(!TrySaveLibrary())throw new IOException("请先处理资料库中未保存的输入或冲突，再汇总周报。");
         if(!CheckDay()||!TrySave())throw new IOException("请先处理当前日记的保存或冲突，再汇总周报。");
         weeklyBusy=true;return true;
     }
@@ -39,7 +40,7 @@ public sealed partial class MainWindow
     }
     private void TickWeekly()
     {
-        if(!WeeklyTimerEnabled||exiting||weeklyBusy||composing||session.Dirty||session.IsConflict||draftNeeded||DateTime.UtcNow<nextWeeklyCheck)return;
+        if(!WeeklyTimerEnabled||exiting||weeklyBusy||LibraryHasPendingInput||composing||session.Dirty||session.IsConflict||draftNeeded||DateTime.UtcNow<nextWeeklyCheck)return;
         nextWeeklyCheck=DateTime.UtcNow.AddSeconds(15);
         _=RunWeeklyAutoAsync(DateTimeOffset.Now);
     }
@@ -114,7 +115,7 @@ public sealed class WeeklyPanel
         latest.Click+=(_,_)=>WeekPicker.SelectedDate=WeeklyWindow.Latest(DateTimeOffset.Now,ReadSchedule()).Friday.ToDateTime(TimeOnly.MinValue);
         PreviewButton.Click+=async(_,_)=>await PreviewAsync();GenerateButton.Click+=async(_,_)=>await GenerateAsync();
         SaveSettingsButton.Click+=(_,_)=>SaveSettings();
-        OpenButton.Click+=(_,_)=>{try{if(savedPath!=null&&File.Exists(savedPath))System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(savedPath){UseShellExecute=true});}catch(Exception e){Error(e);}};
+        OpenButton.Click+=(_,_)=>{try{if(savedPath!=null&&File.Exists(savedPath))owner.OpenWeeklyDocument(savedPath);}catch(Exception e){Error(e);}};
         export.Click+=(_,_)=>{if(CurrentPreview==null)return;var picker=new Microsoft.Win32.SaveFileDialog{Title="另存周报预览草稿",FileName=CurrentPreview.Window.Id+"-周报草稿.md",Filter="Markdown|*.md"};if(picker.ShowDialog(window)==true)try{File.WriteAllText(picker.FileName,CurrentPreview.Markdown,DiarySession.Utf8);Message.Text="预览草稿已另存："+picker.FileName;}catch(Exception e){Error(e);}};
         window.Closing+=(_,e)=>{if(IsBusy){e.Cancel=true;Message.Text="正在处理周报，请稍候再关闭。";}};
         UpdateSummary();

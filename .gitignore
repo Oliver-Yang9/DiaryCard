@@ -15,3 +15,5 @@ src/obj/
 *.user
 test-assets/flower.mp4
 diary-card.json
+Diary/
+public/

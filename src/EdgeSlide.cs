@@ -12,6 +12,8 @@ namespace DailyDiaryCard;
 // so shared monitor edges never reveal a moving window on the adjacent screen.
 internal sealed class EdgeSlide : IDisposable
 {
+    internal const double CloseDurationMs=400;
+    internal const double OpenDurationMs=360;
     private readonly MainWindow owner;
     private readonly PixelRect bounds;
     private readonly TranslateTransform translation=new();
@@ -47,7 +49,7 @@ internal sealed class EdgeSlide : IDisposable
         Closing=closing;int token=++generation;
         double destination=closing?distance:0;
         double fraction=Math.Abs(destination-current)/Math.Abs(distance);
-        var duration=TimeSpan.FromMilliseconds(Math.Max(60,(closing?550:500)*fraction));
+        var duration=TimeSpan.FromMilliseconds(Math.Max(60,(closing?CloseDurationMs:OpenDurationMs)*fraction));
         var animation=new DoubleAnimation(current,destination,duration) {EasingFunction=new CubicEase {EasingMode=EasingMode.EaseInOut},FillBehavior=FillBehavior.HoldEnd};
         animation.Completed+=(_,_)=>{if(!disposed&&token==generation)completed(Closing);};
         translation.BeginAnimation(axis,animation);

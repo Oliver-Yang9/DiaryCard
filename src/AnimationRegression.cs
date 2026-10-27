@@ -26,7 +26,7 @@ internal static class AnimationRegression
         void Stop(Exception? error)
         {
             timer.Stop();docking.Detach();docking.AnimationOverride=null;
-            DiarySession.AtomicText(Path.Combine(output,"animation-result.json"),JsonSerializer.Serialize(new{passed=error==null,systemAnimationEnabled=SystemParameters.ClientAreaAnimation,closeDurationMs=550,openDurationMs=500,frames,error=error?.ToString()},CardConfig.Json));done(error);
+            DiarySession.AtomicText(Path.Combine(output,"animation-result.json"),JsonSerializer.Serialize(new{passed=error==null,systemAnimationEnabled=SystemParameters.ClientAreaAnimation,closeDurationMs=EdgeSlide.CloseDurationMs,openDurationMs=EdgeSlide.OpenDurationMs,frames,error=error?.ToString()},CardConfig.Json));done(error);
         }
         timer.Tick+=(_,_)=>
         {

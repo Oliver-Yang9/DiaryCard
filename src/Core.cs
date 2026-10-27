@@ -13,6 +13,8 @@ namespace DailyDiaryCard;
 
 public sealed class CardConfig
 {
+    public string StorageMode { get; set; } = "obsidian";
+    [System.Text.Json.Serialization.JsonIgnore] public bool IsStandalone => StorageMode.Equals("standalone",StringComparison.OrdinalIgnoreCase);
     public string VaultPath { get; set; } = "";
     public string TemplatePath { get; set; } = "";
     public string DiaryFolder { get; set; } = "";
@@ -26,8 +28,10 @@ public sealed class CardConfig
     public static CardConfig Load(string? file)
     {
         file ??= Path.Combine(AppContext.BaseDirectory, "diary-card.json");
-        var c = File.Exists(file) ? JsonSerializer.Deserialize<CardConfig>(File.ReadAllText(file), Json)! : new();
+        var c = File.Exists(file) ? JsonSerializer.Deserialize<CardConfig>(File.ReadAllText(file), Json)??throw new IOException("配置文件为空，请重新选择使用方式。") : new();
         c.PathMappings ??= new();
+        c.StorageMode=(c.StorageMode??"obsidian").Trim().ToLowerInvariant();
+        if(c.StorageMode is not ("obsidian" or "standalone"))throw new IOException("无法识别使用模式，请重新选择 Obsidian 或独立使用。");
         c.ConfigPath = Path.GetFullPath(file);
         var baseDir = Path.GetDirectoryName(c.ConfigPath)!;
         if(string.IsNullOrWhiteSpace(c.VaultPath))throw new IOException("请先选择或创建日记库。");
@@ -35,7 +39,9 @@ public sealed class CardConfig
         if(!Directory.Exists(c.VaultPath))throw new IOException("日记库地址不存在，请在日记库设置中重新选择。");
         if(string.IsNullOrWhiteSpace(c.UserDataPath))c.UserDataPath=Path.Combine(baseDir,"data");
         c.UserDataPath=c.ResolvePath(c.UserDataPath,baseDir);
-        var settings=string.IsNullOrWhiteSpace(c.DiaryFolder)||string.IsNullOrWhiteSpace(c.DateFormat)||(!c.UseBundledTemplate&&string.IsNullOrWhiteSpace(c.TemplatePath))?SetupService.Inspect(c.VaultPath):new VaultSettings("","日记","YYYY/MM/YYYY-MM-DD","显式配置",false);
+        VaultSettings settings;
+        if(c.IsStandalone){var local=SetupService.InspectStandalone(c.VaultPath);settings=new(local.Template,local.Folder,local.Format,"独立日记资料夹",true);}
+        else settings=string.IsNullOrWhiteSpace(c.DiaryFolder)||string.IsNullOrWhiteSpace(c.DateFormat)||(!c.UseBundledTemplate&&string.IsNullOrWhiteSpace(c.TemplatePath))?SetupService.Inspect(c.VaultPath):new VaultSettings("","日记","YYYY/MM/YYYY-MM-DD","显式配置",false);
         if(c.UseBundledTemplate)c.TemplatePath=DefaultAssets.TemplatePath(c.UserDataPath);
         else if(string.IsNullOrWhiteSpace(c.TemplatePath))c.TemplatePath=settings.Template;
         if(string.IsNullOrWhiteSpace(c.TemplatePath))throw new IOException("未找到日记模板，请选择模板或使用内置模板。");
@@ -45,6 +51,7 @@ public sealed class CardConfig
         c.DiaryFolder=c.ResolvePath(c.DiaryFolder,c.VaultPath);
         if(string.IsNullOrWhiteSpace(c.DateFormat))c.DateFormat=settings.Format;
         if (!File.Exists(c.TemplatePath)) throw new IOException("找不到模板：" + c.TemplatePath);
+        if(c.IsStandalone){SetupService.StandaloneBound(c.VaultPath,c.TemplatePath,false);SetupService.StandaloneBound(c.VaultPath,c.DiaryFolder,true);SetupService.SafeDirectory(c.UserDataPath);if(SetupService.IsUnder(c.UserDataPath,c.VaultPath))throw new IOException("程序数据目录不能包含整个日记资料夹。");}
         _ = TemplateReconciler.Parse(DiarySession.ReadText(c.TemplatePath));
         _ = c.PathFor(new DateOnly(2026, 10, 24));
         return c;
@@ -115,7 +122,7 @@ public sealed class MarkdownDoc
     public Heading? Unique(string title)
     {
         var matches = Sections.Where(s => s.Title == title).ToList();
-        if (matches.Count > 1) throw new IOException("存在重复栏目，无法安全定位：“" + title + "”。请在 Obsidian 中调整标题。");
+        if (matches.Count > 1) throw new IOException("存在重复栏目，无法安全定位：“" + title + "”。请在模板编辑器或 Obsidian 中调整标题。");
         return matches.FirstOrDefault();
     }
     public static IEnumerable<(int Start, string Text, string Raw)> Lines(string source)

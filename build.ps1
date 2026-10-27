@@ -1,4 +1,4 @@
-param([string]$DotnetPath='', [string]$OutputDirectory=(Join-Path $PSScriptRoot 'release\V2.02'))
+param([string]$DotnetPath='', [string]$OutputDirectory=(Join-Path $PSScriptRoot 'build\local-review'))
 $ErrorActionPreference='Stop'
 if(-not $DotnetPath){
     $taskBundled=Join-Path (Split-Path $PSScriptRoot -Parent) 'local\build\dotnet\dotnet.exe'
@@ -26,4 +26,4 @@ if(Test-Path -LiteralPath $weeklyGuide){
     New-Item -ItemType Directory -Path (Join-Path $OutputDirectory 'docs') -Force|Out-Null
     Copy-Item -LiteralPath $weeklyGuide -Destination (Join-Path $OutputDirectory 'docs\weekly-report.md') -Force
 }
-Write-Output ('正式版程序：'+(Join-Path $OutputDirectory '日记卡片.exe'))
+Write-Output ('本地审核程序：'+(Join-Path $OutputDirectory '日记卡片.exe'))

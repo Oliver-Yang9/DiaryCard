@@ -34,11 +34,17 @@ public static class Program
         if(args.Contains("--setup-ui-smoke"))return SetupUiTests.Run(testRoot);
         if(args.Contains("--weekly-tests"))return WeeklyTests.Run(testRoot,Value("--weekly-source-vault"));
         if(args.Contains("--weekly-ui-smoke"))return WeeklyUiTests.Run(testRoot);
+        if(args.Contains("--standalone-tests"))return StandaloneTests.Run(testRoot);
+        if(args.Contains("--mode-ui-smoke"))return ModeUiTests.Run(testRoot);
+        if(args.Contains("--library-tests"))return LibraryTests.Run(testRoot);
+        if(args.Contains("--library-ui-smoke"))return LibraryUiTests.Run(testRoot);
+        if(args.Contains("--startup-tests"))return StartupTests.Run(testRoot);
+        if(args.Contains("--startup-ui-smoke"))return StartupUiTests.Run(testRoot);
         CardConfig? config=null;bool restart=false;int result=0;
         var file=Path.GetFullPath(Value("--config")??Path.Combine(AppContext.BaseDirectory,"diary-card.json"));
         try
         {
-            if(args.Contains("--check-config")){config=CardConfig.Load(file);DiarySession.AtomicText(Value("--report")??throw new IOException("需要 --report 输出路径。"),System.Text.Json.JsonSerializer.Serialize(new{config.VaultPath,config.TemplatePath,config.DiaryFolder,config.UserDataPath,config.UseBundledTemplate,Today=config.PathFor(DateOnly.FromDateTime(DateTime.Now)),Sections=new MarkdownDoc(DiarySession.ReadText(config.TemplatePath)).Sections.Select(h=>h.Title)},CardConfig.Json));return 0;}
+            if(args.Contains("--check-config")){config=CardConfig.Load(file);DiarySession.AtomicText(Value("--report")??throw new IOException("需要 --report 输出路径。"),System.Text.Json.JsonSerializer.Serialize(new{config.StorageMode,config.VaultPath,config.TemplatePath,config.DiaryFolder,config.UserDataPath,config.UseBundledTemplate,Today=config.PathFor(DateOnly.FromDateTime(DateTime.Now)),Sections=new MarkdownDoc(DiarySession.ReadText(config.TemplatePath)).Sections.Select(h=>h.Title)},CardConfig.Json));return 0;}
             var configKey=DiarySession.Hash(file.ToUpperInvariant())[..24];
             using(var configMutex=new Mutex(true,"Local\\DiaryCard2-Config-"+configKey,out bool configFirst))
             using(var configShow=new EventWaitHandle(false,EventResetMode.AutoReset,"Local\\DiaryCard2-Show-"+configKey))
@@ -57,14 +63,15 @@ public static class Program
                         try{config=CardConfig.Load(file);}catch(Exception e) when(e is IOException or UnauthorizedAccessException or System.Text.Json.JsonException or ArgumentException){error=e.Message;}
                         if(config==null)
                         {
-                            var wizard=new VaultSetupWindow(file,plan=>{if(VaultUse.InUse(plan.Config))throw new IOException("该日记库正在另一张卡片中打开，请先保存并正常退出那张卡片。");config=SetupService.Complete(plan);return true;},startupError:File.Exists(file)?error:null);active=wizard;if(args.Contains("--ui-probe"))wizard.ContentRendered+=(_,_)=>DiarySession.AtomicText(Path.Combine(Path.GetDirectoryName(file)!,"startup-probe.json"),System.Text.Json.JsonSerializer.Serialize(new{state="setup",pid=Environment.ProcessId,visible=wizard.IsVisible},CardConfig.Json));wizard.ShowDialog();
+                            var wizard=new ModeSetupWindow(file,plan=>{if(VaultUse.InUse(plan.Config))throw new IOException("该日记库正在另一张卡片中打开，请先保存并正常退出那张卡片。");config=SetupService.Complete(plan);return true;},startupError:File.Exists(file)?error:null);active=wizard;if(args.Contains("--ui-probe"))wizard.ContentRendered+=(_,_)=>DiarySession.AtomicText(Path.Combine(Path.GetDirectoryName(file)!,"startup-probe.json"),System.Text.Json.JsonSerializer.Serialize(new{state="setup",pid=Environment.ProcessId,visible=wizard.IsVisible},CardConfig.Json));wizard.ShowDialog();
                             if(!wizard.Accepted){app.Shutdown();return 0;}
+                            try{StartupService.ApplyFirstChoice(file,wizard.StartupRequested);}catch(Exception startupError){System.Windows.MessageBox.Show("日记设置已保存，但开机自启动未能设置：\\n"+startupError.Message+"\\n可在卡片菜单中重试。","开机自启动");}
                         }
                         var key=VaultUse.Key(config!);
                         using var mutex=new Mutex(true,"Local\\DailyDiaryCard-"+key,out bool first);
                         using var restore=new EventWaitHandle(false,EventResetMode.AutoReset,"Local\\DailyDiaryCard-Show-"+key);
                         using var closeRequest=new EventWaitHandle(false,EventResetMode.AutoReset,"Local\\DailyDiaryCard-Close-"+key);
-                        if(!first){restore.Set();System.Windows.MessageBox.Show("这个日记库已经由另一张卡片打开。请先正常退出已有卡片，再使用第二版。","日记库已打开");app.Shutdown();return 0;}
+                        if(!first){restore.Set();System.Windows.MessageBox.Show("这个日记库已经由另一张卡片打开。请先正常退出已有卡片，再使用当前版本。","日记库已打开");app.Shutdown();return 0;}
                         try
                         {
                             var window=new MainWindow(config!,args.Contains("--ui-smoke")?UiSmoke.Today:null);active=window;app.MainWindow=window;app.ShutdownMode=ShutdownMode.OnMainWindowClose;
@@ -74,6 +81,7 @@ public static class Program
                             if(args.Contains("--ui-smoke"))UiSmoke.Attach(window,config!,Value("--task-fixture"),Value("--media-fixtures"));
                             if(args.Contains("--ui-probe"))UiProbe.Attach(window,config!);
                             if(args.Contains("--settings-switch-test"))SettingsSwitchProbe.Attach(window,config!,Value("--settings-switch-test")!);
+                            if(args.Contains("--storage-switch-mode"))ModeSwitchProbe.Attach(window,config!,Value("--storage-switch-mode")!,Value("--storage-switch-path")!);
                             result=app.Run(window);restart=window.RestartRequested;registration.Unregister(null);exitRegistration.Unregister(null);
                         }
                         finally{mutex.ReleaseMutex();}

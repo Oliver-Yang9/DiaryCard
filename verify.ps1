@@ -1,4 +1,4 @@
-param([string]$ExePath = (Join-Path $PSScriptRoot 'release\V2.02\日记卡片.exe'), [string]$TemplatePath = (Join-Path $PSScriptRoot 'src\Defaults\template.md'), [string]$TaskFixturePath = '')
+param([string]$ExePath = (Join-Path $PSScriptRoot 'build\local-review\日记卡片.exe'), [string]$TemplatePath = (Join-Path $PSScriptRoot 'src\Defaults\template.md'), [string]$TaskFixturePath = '')
 $ErrorActionPreference='Stop'
 $taskRoot=Join-Path $PSScriptRoot ('local\tests\verify-'+(Get-Date -Format 'yyyyMMdd-HHmmss'))
 New-Item -ItemType Directory -Path $taskRoot -Force | Out-Null

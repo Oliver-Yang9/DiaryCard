@@ -1,4 +1,4 @@
-param([string]$ExePath=(Join-Path $PSScriptRoot 'release\V2.02\日记卡片.exe'))
+param([string]$ExePath=(Join-Path $PSScriptRoot 'build\local-review\日记卡片.exe'))
 $ErrorActionPreference='Stop'
 $root=Join-Path $PSScriptRoot ('local\tests\weekly-process-'+(Get-Date -Format 'yyyyMMdd-HHmmss'))
 if(-not ([IO.Path]::GetFullPath($root)).StartsWith((Join-Path $PSScriptRoot 'local\tests\'),[StringComparison]::OrdinalIgnoreCase)){throw '测试目录校验失败'}

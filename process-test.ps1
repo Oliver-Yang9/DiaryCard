@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$ConfigPath,[string]$ExePath=(Join-Path $PSScriptRoot 'release\V2.02\日记卡片.exe'))
+param([Parameter(Mandatory=$true)][string]$ConfigPath,[string]$ExePath=(Join-Path $PSScriptRoot 'build\local-review\日记卡片.exe'))
 $ErrorActionPreference='Stop'
 $taskConfig=Get-Content -LiteralPath $ConfigPath -Raw|ConvertFrom-Json
 $taskRoot=[IO.Path]::GetFullPath($taskConfig.VaultPath)

@@ -120,7 +120,7 @@ public sealed partial class MainWindow : Window
             if(Keyboard.Modifiers==ModifierKeys.Control&&(e.Key==Key.Subtract||e.Key==Key.OemMinus)){SetFont(prefs.FontSize-1);e.Handled=true;}
         };
         Deactivated+=(_,_)=>{composing=false;TrySave();};
-        Closing+=(_,e)=>{if(weeklyBusy){e.Cancel=true;SetWeeklyMessage("正在处理周报，请稍候再退出。");return;}if(!exiting){if(!TrySave()){e.Cancel=true;return;}SavePreferences();exiting=true;}};
+        Closing+=(_,e)=>{if(weeklyBusy){e.Cancel=true;SetWeeklyMessage("正在处理周报，请稍候再退出。");return;}if(!TrySaveLibrary()){e.Cancel=true;return;}if(!exiting){if(!TrySave()){e.Cancel=true;return;}SavePreferences();exiting=true;}};
         Closed+=(_,_)=>{backgroundRevision++;wallpaper.Dispose();docking.Dispose();timer?.Stop();nativeSource?.RemoveHook(OnNativeMessage);tray.Visible=false;tray.Icon?.Dispose();tray.Dispose();};
         timer=new DispatcherTimer {Interval=TimeSpan.FromMilliseconds(250)};timer.Tick+=(_,_)=>Tick();timer.Start();
         if(session.Restored)ShowBanner("已恢复上次未保存的输入；保存前仍会检查外部修改。",false);
@@ -186,13 +186,13 @@ public sealed partial class MainWindow : Window
     {
         var m=new ContextMenu();
         void Item(string label,Action a){var i=new MenuItem{Header=label};i.Click+=(_,_)=>a();m.Items.Add(i);}
-        Item("主题库",ShowThemes);Item("周报汇总…",ShowWeekly);Item("日记库设置…",()=>CreateVaultSettingsDialog().ShowDialog());Item("展开全部栏目",()=>{foreach(var e in expanders.Values)e.IsExpanded=true;});Item("收起全部栏目",()=>{foreach(var e in expanders.Values)e.IsExpanded=false;});
+        Item("主题库",ShowThemes);Item("开机自启动…",()=>CreateStartupDialog().Window.ShowDialog());Item("周报汇总…",ShowWeekly);Item("日记库设置…",()=>CreateStorageSettingsDialog().ShowDialog());Item("使用模式…",()=>CreateModeSettingsDialog().ShowDialog());Item("日记资料库…",ShowLibrary);Item("编辑日记模板…",()=>OpenDocumentInApp(config.TemplatePath));Item("展开全部栏目",()=>{foreach(var e in expanders.Values)e.IsExpanded=true;});Item("收起全部栏目",()=>{foreach(var e in expanders.Values)e.IsExpanded=false;});
         pinMenu=new MenuItem {Header="始终置顶",IsCheckable=true,IsChecked=Topmost};pinMenu.Click+=(_,_)=>ToggleTopmost();m.Items.Add(pinMenu);
         edgeMenu=new MenuItem {Header="贴边自动收起",IsCheckable=true,IsChecked=prefs.EdgeAutoHide};edgeMenu.Click+=(_,_)=>SetEdgeAutoHide(edgeMenu.IsChecked);m.Items.Add(edgeMenu);
         Item("展开并取消本次贴边",()=>docking.Detach());
         Item("栏目透明度…",()=>CreateTransparencyDialog().ShowDialog());
         m.Opened+=(_,_)=>{Themes.StyleContextMenu(m,prefs.Theme);openMenus++;};m.Closed+=(_,_)=>openMenus=Math.Max(0,openMenus-1);
-        m.Items.Add(new Separator());Item("打开当天日记",()=>{if(TrySave()&&File.Exists(session.Target))OpenPath(session.Target);else if(!File.Exists(session.Target))ShowBanner("首次填写后会创建当天日记。",false);});
+        m.Items.Add(new Separator());Item("打开当天日记",()=>{if(TrySave()&&File.Exists(session.Target)){if(config.IsStandalone)ShowLibrary();else OpenPath(session.Target);}else if(!File.Exists(session.Target))ShowBanner("首次填写后会创建当天日记。",false);});
         Item("打开日记目录",()=>{Directory.CreateDirectory(config.DiaryFolder);OpenPath(config.DiaryFolder);});
         Item("查看与恢复草稿",ShowRecovery);Item("同步当天日记",()=>{CheckDay();RefreshFromDisk();});Item("切换到今天",()=>CheckDay());Item("查看配置",ShowConfig);
         Item("重新读取模板",()=>RefreshTemplateNow());
@@ -226,7 +226,7 @@ public sealed partial class MainWindow : Window
             extraSections=new Expander {Header="模板外已有内容（已保留）",Content=preserved,IsExpanded=preserveView&&extraExpanded};sections.Children.Add(extraSections);
         }
         dateLabel.Text=session.Date.ToString("M 月 d 日",CultureInfo.GetCultureInfo("zh-CN"));
-        subLabel.Text=session.Date.ToString("yyyy 年 · dddd",CultureInfo.GetCultureInfo("zh-CN"))+"   /   "+session.Template.Count+" 个栏目 · 本地保存";
+        subLabel.Text=session.Date.ToString("yyyy 年 · dddd",CultureInfo.GetCultureInfo("zh-CN"))+"   /   "+session.Template.Count+" 个栏目 · "+(config.IsStandalone?"独立模式":"Obsidian")+" · 本地保存";
         Title="日记卡片 · "+session.Date.ToString("yyyy-MM-dd");
         pathLabel.Text=Path.GetRelativePath(config.VaultPath,session.Target);pathLabel.ToolTip=session.Target;if(!preserveView)scroll.ScrollToTop();rebuilding=false;
         if(preserveView)Dispatcher.BeginInvoke(DispatcherPriority.Loaded,()=>{
@@ -293,7 +293,7 @@ public sealed partial class MainWindow : Window
     }
     public bool HideCard()
     {
-        if(!TrySave())return false;SavePreferences();docking.HideToTray();Hide();return true;
+        if(!TrySaveLibrary()||!TrySave())return false;SavePreferences();docking.HideToTray();Hide();return true;
     }
     public void ShowCard()=>ShowCard(true);
     private void ShowCard(bool check)
@@ -340,20 +340,22 @@ public sealed partial class MainWindow : Window
     {
         if(composing)return false;
         if(today()==session.Date)return true;
+        if(!TrySaveLibrary()){ShowBanner("系统日期已变化，请先处理资料库的保存问题。",true);return false;}
         if(!TrySave()){ShowBanner("系统日期已变化，当前仍编辑 "+session.Date+"。请先保存，或保留恢复草稿后切换今天。\n"+session.Error,true);return false;}
-        try{var next=new DiarySession(config,today());next.EnsureDailyFile();session=next;BuildSections();SetIdleStatus();ShowBanner("已切换到 "+session.Date+"，并同步当天日记；上一日内容已保存。",false);return true;}
+        try{var next=new DiarySession(config,today());next.EnsureDailyFile();session=next;BuildSections();FollowLibraryDay(session.Target);SetIdleStatus();ShowBanner("已切换到 "+session.Date+"，并同步当天日记；上一日内容已保存。",false);return true;}
         catch(Exception e){status.Text="新一天日记准备失败 · 保留上一日";status.SetResourceReference(TextBlock.ForegroundProperty,"Danger");ShowBanner("无法创建或匹配当天日记，仍停留在 "+session.Date+"："+e.Message,true);return false;}
     }
     private void SwitchTodayKeepingDraft()
     {
+        if(!TrySaveLibrary()){ShowBanner("请先处理资料库中未保存的输入。",true);return;}
         if(today()==session.Date){ShowBanner("当前已经是今天；可使用“查看与恢复”处理保存问题。",false);return;}
-        try{session.ArchiveDraft("跨天前保留草稿");var next=new DiarySession(config,today());next.EnsureDailyFile();session=next;BuildSections();SetIdleStatus();ShowBanner("已保留上一日恢复草稿并切换今天。",false);}
+        try{session.ArchiveDraft("跨天前保留草稿");var next=new DiarySession(config,today());next.EnsureDailyFile();session=next;BuildSections();FollowLibraryDay(session.Target);SetIdleStatus();ShowBanner("已保留上一日恢复草稿并切换今天。",false);}
         catch(Exception e){ShowBanner("草稿保留或切换失败："+e.Message,true);}
     }
     public bool ExitCard()
     {
         if(weeklyBusy){SetWeeklyMessage("正在处理周报，请稍候再退出。");return false;}
-        if(!TrySave()){ShowCard(false);return false;}SavePreferences();exiting=true;Close();return true;
+        if(!TrySaveLibrary()||!TrySave()){ShowCard(false);return false;}SavePreferences();exiting=true;Close();return true;
     }
     private void SavePreferences()
     {
@@ -536,7 +538,9 @@ public sealed partial class MainWindow : Window
         if(composing){ShowBanner("请先完成当前中文输入，再切换日记库。",true);return false;}
         if(!TrySave())return false;
         if(VaultUse.Key(plan.Config)!=VaultUse.Key(config)&&VaultUse.InUse(plan.Config))throw new IOException("目标日记库正在另一张卡片中打开，请先正常退出它。");
-        plan.Config.PathMappings=config.PathMappings;SavePreferences();
+        if(!TrySaveLibrary())return false;
+        ValidatePlanMappings(plan,config.PathMappings);
+        plan.Config.PathMappings=new(config.PathMappings);SavePreferences();
         using(var transaction=SetupService.Prepare(plan)){transaction.Commit();}
         RestartRequested=true;IsEnabled=false;
         Dispatcher.BeginInvoke(new Action(()=>{exiting=true;Close();}),DispatcherPriority.Background);
@@ -546,10 +550,10 @@ public sealed partial class MainWindow : Window
         =>CreateConfigDialog().ShowDialog();
     public Window CreateConfigDialog()
     {
-        var message="仓库："+config.VaultPath+"\n模板："+config.TemplatePath+"\n日记目录："+config.DiaryFolder+"\n命名规则："+config.DateFormat+"\n本机草稿与偏好："+config.UserDataPath+"\n配置文件："+config.ConfigPath+"\n\n可使用“日记库设置”修改地址、模板和保存规则。切换前先保存，再自动重新打开卡片。\n程序不联网，不注册开机启动，不新增跨天任务继承。";
+        var message="使用模式："+(config.IsStandalone?"独立使用 DiaryCard":"Obsidian")+"\\n资料位置："+config.VaultPath+"\n模板："+config.TemplatePath+"\n日记目录："+config.DiaryFolder+"\n命名规则："+config.DateFormat+"\n本机草稿与偏好："+config.UserDataPath+"\n配置文件："+config.ConfigPath+"\n\n可使用“日记库设置”修改地址、模板和保存规则。切换前先保存，再自动重新打开卡片。\n程序不联网，不注册开机启动，不新增跨天任务继承。";
         var dialog=Dialog("日记卡片配置",650,500);var layout=new DockPanel {Margin=new Thickness(22)};
         var done=Button("关闭",()=>dialog.Close());done.HorizontalAlignment=HorizontalAlignment.Right;DockPanel.SetDock(done,Dock.Bottom);layout.Children.Add(done);
-        var change=Button("日记库设置…",()=>{dialog.Close();CreateVaultSettingsDialog().ShowDialog();});change.HorizontalAlignment=HorizontalAlignment.Left;DockPanel.SetDock(change,Dock.Bottom);layout.Children.Add(change);
+        var change=Button("日记库设置…",()=>{dialog.Close();CreateStorageSettingsDialog().ShowDialog();});change.HorizontalAlignment=HorizontalAlignment.Left;DockPanel.SetDock(change,Dock.Bottom);layout.Children.Add(change);
         layout.Children.Add(new TextBox {Text=message,IsReadOnly=true,AcceptsReturn=true,TextWrapping=TextWrapping.Wrap,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,FontSize=13});dialog.Content=layout;return dialog;
     }
     private void ShowRecovery()

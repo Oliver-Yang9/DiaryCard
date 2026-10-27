@@ -22,9 +22,9 @@ public static class DefaultAssets
 }
 
 public sealed record VaultSettings(string Template,string Folder,string Format,string Source,bool HasTemplate);
-public sealed record VaultPlan(CardConfig Config,string InstallRoot,bool CreateVault,string TemplateText,string SettingsSource);
+public sealed record VaultPlan(CardConfig Config,string InstallRoot,bool CreateVault,string TemplateText,string SettingsSource,bool WriteTemplate=false,string? ManifestExpected=null);
 
-public static class SetupService
+public static partial class SetupService
 {
     public static VaultSettings Inspect(string vault)
     {
@@ -77,11 +77,11 @@ public static class SetupService
     internal static CardConfig Portable(CardConfig c)
     {
         var dir=Path.GetDirectoryName(c.ConfigPath)!;
-        return new(){VaultPath=IsUnder(dir,c.VaultPath)?Path.GetRelativePath(dir,c.VaultPath):c.VaultPath,TemplatePath=c.UseBundledTemplate?"":Path.GetRelativePath(c.VaultPath,c.TemplatePath),DiaryFolder=Path.GetRelativePath(c.VaultPath,c.DiaryFolder),DateFormat=c.DateFormat,UserDataPath=Path.GetRelativePath(dir,c.UserDataPath),PathMappings=c.PathMappings,SetupVersion=2,UseBundledTemplate=c.UseBundledTemplate};
+        return new(){StorageMode=c.StorageMode,VaultPath=IsUnder(dir,c.VaultPath)?Path.GetRelativePath(dir,c.VaultPath):c.VaultPath,TemplatePath=c.UseBundledTemplate?"":Path.GetRelativePath(c.VaultPath,c.TemplatePath),DiaryFolder=Path.GetRelativePath(c.VaultPath,c.DiaryFolder),DateFormat=c.DateFormat,UserDataPath=Path.GetRelativePath(dir,c.UserDataPath),PathMappings=c.PathMappings,SetupVersion=c.SetupVersion,UseBundledTemplate=c.UseBundledTemplate};
     }
 }
 
-public sealed class SetupTransaction:IDisposable
+public sealed partial class SetupTransaction:IDisposable
 {
     private readonly Dictionary<string,string> files=new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string> directories=new();
@@ -99,8 +99,9 @@ public sealed class SetupTransaction:IDisposable
                 Folder(Config.VaultPath);
                 Write(Config.TemplatePath,DiarySession.Utf8.GetBytes(plan.TemplateText),false);
                 var settings=new{folder=Path.GetRelativePath(Config.VaultPath,Config.DiaryFolder).Replace(Path.DirectorySeparatorChar,'/'),format=Config.DateFormat,template=Path.GetRelativePath(Config.VaultPath,Config.TemplatePath).Replace(Path.DirectorySeparatorChar,'/')};
-                Write(Path.Combine(Config.VaultPath,".obsidian","daily-notes.json"),DiarySession.Utf8.GetBytes(JsonSerializer.Serialize(settings,CardConfig.Json)),false);
+                if(!Config.IsStandalone)Write(Path.Combine(Config.VaultPath,".obsidian","daily-notes.json"),DiarySession.Utf8.GetBytes(JsonSerializer.Serialize(settings,CardConfig.Json)),false);
             }
+            if(Config.IsStandalone&&!plan.CreateVault&&plan.WriteTemplate)Write(Config.TemplatePath,DiarySession.Utf8.GetBytes(plan.TemplateText),false);
             Folder(Config.UserDataPath);
             Write(DefaultAssets.TemplatePath(Config.UserDataPath),DefaultAssets.Read("template.md"),true);
             Write(Path.Combine(Config.UserDataPath,"backgrounds",DefaultAssets.BackgroundName),DefaultAssets.Read("background.jpg"),true);
@@ -126,11 +127,13 @@ public sealed class SetupTransaction:IDisposable
     {
         // Configuration is committed last; existing vault settings and notes are never rewritten here.
         if(File.Exists(Config.ConfigPath))DiarySession.AtomicText(Path.Combine(Config.UserDataPath,"config.previous.json"),DiarySession.ReadText(Config.ConfigPath));
+        CommitStandaloneManifest();
         DiarySession.AtomicText(Config.ConfigPath,JsonSerializer.Serialize(SetupService.Portable(Config),CardConfig.Json));committed=true;
     }
     public void Dispose()
     {
         if(committed)return;
+        RollbackStandaloneManifest();
         foreach(var file in files)
             try{if(File.Exists(file.Key)&&Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(file.Key)))==file.Value)File.Delete(file.Key);}catch(IOException){}catch(UnauthorizedAccessException){}
         foreach(var dir in directories.AsEnumerable().Reverse())try{if(Directory.Exists(dir)&&!Directory.EnumerateFileSystemEntries(dir).Any())Directory.Delete(dir,false);}catch(IOException){}catch(UnauthorizedAccessException){}

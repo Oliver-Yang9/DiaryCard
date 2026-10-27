@@ -35,9 +35,9 @@ public sealed class VaultSetupWindow:Window
     public TextBlock ErrorText{get;}=new(){TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,8,0,10)};
     public bool Accepted{get;private set;}
     public VaultPlan? AcceptedPlan{get;private set;}
-    public VaultSetupWindow(string file,Func<VaultPlan,bool> onApply,CardConfig? current=null,string theme="fluent",string? startupError=null)
+    public VaultSetupWindow(string file,Func<VaultPlan,bool> onApply,CardConfig? current=null,string theme="fluent",string? startupError=null,string? dataOverride=null)
     {
-        configFile=Path.GetFullPath(file);install=Path.GetDirectoryName(configFile)!;data=current?.UserDataPath??Path.Combine(install,"data");apply=onApply;
+        configFile=Path.GetFullPath(file);install=Path.GetDirectoryName(configFile)!;data=current?.UserDataPath??dataOverride??Path.Combine(install,"data");apply=onApply;
         Title=current==null?"欢迎使用 DiaryCard · 设置日记库":"日记库设置";
         Width=690;Height=Math.Min(810,SystemParameters.WorkArea.Height-30);MinWidth=520;MinHeight=440;WindowStartupLocation=WindowStartupLocation.CenterScreen;WindowStyle=WindowStyle.ToolWindow;ResizeMode=ResizeMode.CanResizeWithGrip;
         foreach(var pair in Themes.DialogBrushes(theme))Resources[pair.Key]=pair.Value;
